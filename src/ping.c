@@ -40,6 +40,7 @@ int send_icmp_packet(int sockfd, struct sockaddr_in *dest, t_icmp_packet *pkt) {
 }
 
 int receive_icmp_reply(int sockfd, struct timeval *start, struct timeval *end) {
+    (void) start;
     char buffer[1024];
     struct sockaddr_in from;
     socklen_t addr_len = sizeof(from);
@@ -58,5 +59,49 @@ int receive_icmp_reply(int sockfd, struct timeval *start, struct timeval *end) {
         printf("Received ICMP Echo Reply!\n");
         return 1;
     }
+    return 0;
+}
+
+
+
+int ft_ping(char *ip_address) {
+    // Open socket
+    int sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    if (sockfd < 0) {
+        perror("socket");
+        return 1;
+    }
+
+    // Set up destination
+    struct sockaddr_in dest;
+    memset(&dest, 0, sizeof(dest));
+    dest.sin_family = AF_INET;
+    inet_pton(AF_INET, ip_address, &dest.sin_addr);  // or resolve from argv
+
+
+    // Build packet
+    t_icmp_packet pkt;
+    uint16_t id = getpid() & 0xFFFF;
+    build_icmp_packet(&pkt, id, 1);
+
+
+    // 
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+
+    if (send_icmp_packet(sockfd, &dest, &pkt) < 0) {
+        perror("sendto");
+        return 1;
+    }
+
+    if (receive_icmp_reply(sockfd, &start, &end) > 0) {
+        double rtt = (end.tv_sec - start.tv_sec) * 1000.0 +
+                    (end.tv_usec - start.tv_usec) / 1000.0;
+        printf("RTT: %.3f ms\n", rtt);
+    } else {
+        printf("No reply received.\n");
+    }
+
+    close(sockfd);
     return 0;
 }

@@ -18,5 +18,6 @@ unsigned short calculate_checksum(void *data, int len);
 void build_icmp_packet(t_icmp_packet *pkt, uint16_t id, uint16_t seq);
 int send_icmp_packet(int sockfd, struct sockaddr_in *dest, t_icmp_packet *pkt);
 int receive_icmp_reply(int sockfd, struct timeval *start, struct timeval *end);
+int ft_ping(char *ip_address);
 
 #endif

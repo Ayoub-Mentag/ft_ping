@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror
+CFLAGS = -Wall -Wextra -Werror -I $(INCLUDE)
 
 NAME = ft_ping
 SRCS = src/main.c src/ping.c
@@ -9,7 +9,10 @@ INCLUDE = include/
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CC) -I $(INCLUDE) $(CFLAGS) $(OBJS) -o $(NAME)
+	$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
+
+%.o : %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f $(OBJS)
