@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Werror -I $(INCLUDE)
 
 NAME = ft_ping
-SRCS = src/main.c src/ping.c
+SRCS = src/ping.c
 OBJS = $(SRCS:.c=.o)
 INCLUDE = include/
 

@@ -1,0 +1,280 @@
+{
+	"tldrawFileFormatVersion": 1,
+	"schema": {
+		"schemaVersion": 2,
+		"sequences": {
+			"com.tldraw.store": 4,
+			"com.tldraw.asset": 1,
+			"com.tldraw.camera": 1,
+			"com.tldraw.document": 2,
+			"com.tldraw.instance": 25,
+			"com.tldraw.instance_page_state": 5,
+			"com.tldraw.page": 1,
+			"com.tldraw.instance_presence": 6,
+			"com.tldraw.pointer": 1,
+			"com.tldraw.shape": 4,
+			"com.tldraw.asset.bookmark": 2,
+			"com.tldraw.asset.image": 5,
+			"com.tldraw.asset.video": 5,
+			"com.tldraw.shape.group": 0,
+			"com.tldraw.shape.text": 2,
+			"com.tldraw.shape.bookmark": 2,
+			"com.tldraw.shape.draw": 2,
+			"com.tldraw.shape.geo": 9,
+			"com.tldraw.shape.note": 8,
+			"com.tldraw.shape.line": 5,
+			"com.tldraw.shape.frame": 0,
+			"com.tldraw.shape.arrow": 5,
+			"com.tldraw.shape.highlight": 1,
+			"com.tldraw.shape.embed": 4,
+			"com.tldraw.shape.image": 4,
+			"com.tldraw.shape.video": 2,
+			"com.tldraw.binding.arrow": 0
+		}
+	},
+	"records": [
+		{
+			"gridSize": 10,
+			"name": "",
+			"meta": {},
+			"id": "document:document",
+			"typeName": "document"
+		},
+		{
+			"meta": {},
+			"id": "page:page",
+			"name": "Page 1",
+			"index": "a1",
+			"typeName": "page"
+		},
+		{
+			"x": -1764.601987709652,
+			"y": -806.6360048122917,
+			"rotation": 0,
+			"isLocked": false,
+			"opacity": 1,
+			"meta": {},
+			"id": "shape:VhY5euoUAeOPktcUTN1hR",
+			"type": "text",
+			"props": {
+				"color": "black",
+				"size": "m",
+				"w": 1982.3692626953125,
+				"text": "* sockets are the apparatus that allows communication\n -> each type have an identifying method:\n    Identification method: Filesystem pathname\n    Identification method: IPv4 address + port number.\n    Identification method: IPv6 address + port number.\n\n* Every sockets implementation provides at least two types of sockets: stream and datagram.\n   -> Stream\n          Reliable => the data either transmitted or failed to be transmitted\n          Bidirectional => the data transmitted in both direction unlike the pipe in process \n                                  ls     |   wc.        => SHELL\n                                  pr1 ||  pr2.  => Socket NET\n         Byte stream => as in pipes, there is no concept of message boudaries\n         connection-oriented => each socket could connect to one peer\n                              Server listening socket\n                                 │\n                                 ├─ accept() → Client A socket <───> Client A\n                                 └─ accept() → Client B socket <───> Client B\n\n=====\n   -> Datagram sockets (SOCK_DGRAM) allow data to be exchanged in the form of messages called datagrams.\n        With datagram sockets, message boundaries are preserved,\n        but data transmission is not reliable. Messages may arrive out of order, be duplicated, or not arrive at all.\n\n=====\n* The socket() system call creates a new socket.\n* The bind() system call binds a socket to an address. Usually, a server employs this call to bind its socket to a well-known address so that clients can locate the socket.\n* The listen() system call allows a stream socket to accept incoming connections from other sockets.\n* The connect() system call establishes a connection with another socket.\n\n=====\n\n- The operation of stream sockets can be explained by analogy with the telephone system\n\n\n===\n\nThe backlog argument allows us to\nlimit the number of such pending connections\n\n\n====\n\n\nSummary\nSockets allow communication between applications on the same host or on different\nhosts connected via a network.\nA socket exists within a communication domain, which determines the range\nof communication and the address format used to identify the socket. SUSv3 specifies\nthe UNIX (AF_UNIX), IPv4 (AF_INET), and IPv6 (AF_INET6) communication domains.\nMost applications use one of two socket types: stream or datagram. Stream\nsockets (SOCK_STREAM) provide a reliable, bidirectional, byte-stream communication\nchannel between two endpoints. Datagram sockets (SOCK_DGRAM) provide unreliable,\nconnectionless, message-oriented communication.\nSockets: Introduction 1163\nA typical stream socket server creates its socket using socket(), and then binds\nthe socket to a well-known address using bind(). The server then calls listen() to\nallow connections to be received on the socket. Each client connection is then\naccepted on the listening socket using accept(), which returns a file descriptor for a\nnew socket that is connected to the client’s socket. A typical stream socket client\ncreates a socket using socket(), and then establishes a connection by calling connect(),\nspecifying the server’s well-known address. After two stream sockets are connected,\ndata can be transferred in either direction using read() and write(). Once all processes with a file descriptor referring to a stream socket endpoint have performed\nan implicit or explicit close(), the connection is terminated.\nA typical datagram socket server creates a socket using socket(), and then binds\nit to a well-known address using bind(). Because datagram sockets are connectionless,\nthe server’s socket can be used to receive datagrams from any client. Datagrams can\nbe received using read() or using the socket-specific recvfrom() system call, which\nreturns the address of the sending socket. A datagram socket client creates a socket\nusing socket(), and then uses sendto() to send a datagram to a specified (i.e., the\nserver’s) address. The connect() system call can be used with a datagram socket to set a\npeer address for the socket. After doing this, it is no longer necessary to specify the destination address for outgoing datagrams; a write() call can be used to send a datagram.",
+				"font": "serif",
+				"textAlign": "start",
+				"autoSize": true,
+				"scale": 1
+			},
+			"parentId": "page:page",
+			"index": "a1",
+			"typeName": "shape"
+		},
+		{
+			"x": 0.772424199533134,
+			"y": 1245.340230849604,
+			"rotation": 0,
+			"isLocked": false,
+			"opacity": 1,
+			"meta": {},
+			"id": "shape:NGOjrO_VZChxYJsE12Hbb",
+			"type": "draw",
+			"props": {
+				"segments": [
+					{
+						"type": "free",
+						"points": [
+							{
+								"x": 0,
+								"y": 0,
+								"z": 0.5
+							}
+						]
+					}
+				],
+				"color": "black",
+				"fill": "none",
+				"dash": "draw",
+				"size": "m",
+				"isComplete": true,
+				"isClosed": false,
+				"isPen": false,
+				"scale": 1
+			},
+			"parentId": "page:page",
+			"index": "aG2xm",
+			"typeName": "shape"
+		},
+		{
+			"x": 0.772424199533134,
+			"y": 1245.340230849604,
+			"rotation": 0,
+			"isLocked": false,
+			"opacity": 1,
+			"meta": {},
+			"id": "shape:KzMEwHJTCVTN-B8OCWI7j",
+			"type": "draw",
+			"props": {
+				"segments": [
+					{
+						"type": "free",
+						"points": [
+							{
+								"x": 0,
+								"y": 0,
+								"z": 0.5
+							}
+						]
+					}
+				],
+				"color": "black",
+				"fill": "none",
+				"dash": "draw",
+				"size": "m",
+				"isComplete": true,
+				"isClosed": false,
+				"isPen": false,
+				"scale": 1
+			},
+			"parentId": "page:page",
+			"index": "aH09R",
+			"typeName": "shape"
+		},
+		{
+			"x": 0.772424199533134,
+			"y": 1245.340230849604,
+			"rotation": 0,
+			"isLocked": false,
+			"opacity": 1,
+			"meta": {},
+			"id": "shape:hHoS7DngUTPMYwc7B6cdO",
+			"type": "draw",
+			"props": {
+				"segments": [
+					{
+						"type": "free",
+						"points": [
+							{
+								"x": 0,
+								"y": 0,
+								"z": 0.5
+							}
+						]
+					}
+				],
+				"color": "black",
+				"fill": "none",
+				"dash": "draw",
+				"size": "m",
+				"isComplete": true,
+				"isClosed": false,
+				"isPen": false,
+				"scale": 1
+			},
+			"parentId": "page:page",
+			"index": "aI5eQ",
+			"typeName": "shape"
+		},
+		{
+			"id": "pointer:pointer",
+			"typeName": "pointer",
+			"x": -1524.1482080690826,
+			"y": 1650.5782463497067,
+			"lastActivityTimestamp": 1755343279192,
+			"meta": {}
+		},
+		{
+			"followingUserId": null,
+			"opacityForNextShape": 1,
+			"stylesForNextShape": {
+				"tldraw:font": "sans"
+			},
+			"brush": null,
+			"scribbles": [],
+			"cursor": {
+				"type": "default",
+				"rotation": 0
+			},
+			"isFocusMode": false,
+			"exportBackground": true,
+			"isDebugMode": false,
+			"isToolLocked": false,
+			"screenBounds": {
+				"x": 0,
+				"y": 0,
+				"w": 857.5,
+				"h": 1085.833251953125
+			},
+			"insets": [
+				false,
+				false,
+				true,
+				false
+			],
+			"zoomBrush": null,
+			"isGridMode": false,
+			"isPenMode": false,
+			"chatMessage": "",
+			"isChatting": false,
+			"highlightedUserIds": [],
+			"isFocused": true,
+			"devicePixelRatio": 2.4000000953674316,
+			"isCoarsePointer": false,
+			"isHoveringCanvas": true,
+			"openMenus": [],
+			"isChangingStyle": false,
+			"isReadonly": false,
+			"meta": {},
+			"duplicateProps": null,
+			"id": "instance:instance",
+			"currentPageId": "page:page",
+			"typeName": "instance"
+		},
+		{
+			"editingShapeId": null,
+			"croppingShapeId": null,
+			"selectedShapeIds": [
+				"shape:eKIRiumtOi-tTWWpMKBt_"
+			],
+			"hoveredShapeId": "shape:eKIRiumtOi-tTWWpMKBt_",
+			"erasingShapeIds": [],
+			"hintingShapeIds": [],
+			"focusedGroupId": null,
+			"meta": {},
+			"id": "instance_page_state:page:page",
+			"pageId": "page:page",
+			"typeName": "instance_page_state"
+		},
+		{
+			"x": 1923.309639864592,
+			"y": -756.4220382446947,
+			"z": 0.3315218066006279,
+			"meta": {},
+			"id": "camera:page:page",
+			"typeName": "camera"
+		},
+		{
+			"x": -1764.0108018007297,
+			"y": 1563.0836404575211,
+			"rotation": 0,
+			"isLocked": false,
+			"opacity": 1,
+			"meta": {},
+			"id": "shape:eKIRiumtOi-tTWWpMKBt_",
+			"type": "text",
+			"props": {
+				"color": "black",
+				"size": "m",
+				"w": 1177.5516357421875,
+				"text": "ICMP protocole one of its messages is Echo Request/Echo Reply basically “are you alive?” / “yes, I’m here.”\nthat is why ping uses ICMP , and that protocol in C networking is presented by SOCK_STREAM.\n(Note that this protocol is in the IP layer)\n\n",
+				"font": "sans",
+				"textAlign": "start",
+				"autoSize": true,
+				"scale": 1
+			},
+			"parentId": "page:page",
+			"index": "aJ3tM",
+			"typeName": "shape"
+		}
+	]
+}
