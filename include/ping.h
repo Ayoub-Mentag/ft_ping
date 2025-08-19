@@ -21,9 +21,14 @@
 #define FLAGS_MANDA_LEN  2
 #define FLAGS_BONUS_LEN  7
 
-int sock = -1;
-int tx_count = 0;
-int rx_count = 0;
-unsigned int dest_addr;
+
+typedef struct {
+    int sock;
+    int tx_count;
+    int rx_count;
+    unsigned int dest_addr;
+} PingData;
+
+PingData g_ping;
 
 #endif

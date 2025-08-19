@@ -37,17 +37,17 @@ unsigned short in_cksum(unsigned short *addr, int count) {
 
 void cleanup(int sig) {
     (void)sig;
-    printf("\n--- %s ping statistics ---\n", inet_ntoa(*(struct in_addr *)&dest_addr));
+    printf("\n--- %s ping statistics ---\n", inet_ntoa(*(struct in_addr *)&g_ping.dest_addr));
     
     float loss = 0.0;
-    if (tx_count > 0)
-        loss = 100.0 * (tx_count - rx_count) / tx_count;
+    if (g_ping.tx_count > 0)
+        loss = 100.0 * (g_ping.tx_count - g_ping.rx_count) / g_ping.tx_count;
     
     printf("%d packets transmitted, %d received, %.1f%% packet loss\n",
-            tx_count, rx_count, loss);
+            g_ping.tx_count, g_ping.rx_count, loss);
     
-    if (sock >= 0) 
-        close(sock);
+    if (g_ping.sock >= 0) 
+        close(g_ping.sock);
     exit(0);
 }
 
@@ -113,7 +113,7 @@ void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from,
     if (icmp_reply->icmp_type == ICMP_ECHOREPLY && 
         icmp_reply->icmp_id == (getpid() & 0xFFFF)) {
         
-        rx_count++;
+        g_ping.rx_count++;
         
         double rtt = (tv_end->tv_sec - tv_start->tv_sec) * 1000.0 +
                 (tv_end->tv_usec - tv_start->tv_usec) / 1000.0;
@@ -135,7 +135,7 @@ int ping_loop(int sock, struct sockaddr_in *dest) {
     int bytes;
     
     while (1) {
-        prep_packet(sendbuf, tx_count++);
+        prep_packet(sendbuf, g_ping.tx_count++);
         
         gettimeofday(&tv_start, NULL);
         
@@ -150,12 +150,12 @@ int ping_loop(int sock, struct sockaddr_in *dest) {
         
         if (bytes < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                printf("Request timeout for icmp_seq=%d\n", tx_count - 1);
+                printf("Request timeout for icmp_seq=%d\n", g_ping.tx_count - 1);
             } else {
                 perror("recvfrom error");
             }
         } else {
-            process_reply(recvbuf, bytes, &from, tx_count - 1, &tv_start, &tv_end);
+            process_reply(recvbuf, bytes, &from, g_ping.tx_count - 1, &tv_start, &tv_end);
         }
         
         sleep(1);
@@ -182,14 +182,22 @@ void help() {
     exit(0);
 }
 
-void verifyAddr(char *argv) {
-    if (inet_pton(AF_INET, argv, &dest_addr) <= 0) {
+void verifyAddr(char *argv, char *flags) {
+    if (strchr(flags, 'n')) {
+        if (inet_pton(AF_INET, argv, &g_ping.dest_addr) <= 0) {
+            fprintf(stderr, "Invalid numeric IP: %s\n", argv);
+            exit(1);
+        }
+        return;
+    }
+
+    if (inet_pton(AF_INET, argv, &g_ping.dest_addr) <= 0) {
         struct in_addr resolved;
         if (resolve_hostname(argv, &resolved) < 0) {
             fprintf(stderr, "Could not resolve hostname: %s\n", argv);
             exit(1);
         }
-        dest_addr = resolved.s_addr;
+        g_ping.dest_addr = resolved.s_addr;
     }
 }
 
@@ -202,7 +210,7 @@ void parsing(char **argv, int argc, char *flags, char *addr) {
                 if (currentChar == '?')
                     help();
 
-                if (strchr(FLAGS_MANDA, currentChar) == NULL) {
+                if (strchr(FLAGS_BONUS, currentChar) == NULL) {
                     fprintf(stderr, "Invalid flag: -%c\n", currentChar);
                     exit(1);
                 }
@@ -221,30 +229,34 @@ void parsing(char **argv, int argc, char *flags, char *addr) {
     printf("FLAGS %s\n", flags);
     printf("addrs %s\n", addr);
     printf("------------------------------------\n");
-    verifyAddr(addr);
+    verifyAddr(addr, flags);
 }
 
 int main(int argc, char *argv[]) {
-    char flags[FLAGS_MANDA_LEN] = "";
+    char flags[FLAGS_BONUS_LEN] = "";
     char *addr = "";
 
     parsing(argv, argc, flags, addr);
 
-    sock = init_socket();
-    if (sock < 0) {
+    g_ping.sock = -1;
+    g_ping.tx_count = 0;
+    g_ping.rx_count = 0;
+    
+    g_ping.sock = init_socket();
+    if (g_ping.sock < 0)
         return 1;
-    }
+
     signal(SIGINT, cleanup);
 
     struct sockaddr_in dest;
     memset(&dest, 0, sizeof(dest));
     dest.sin_family = AF_INET;
-    dest.sin_addr.s_addr = dest_addr;
+    dest.sin_addr.s_addr = g_ping.dest_addr;
 
     if (strlen(flags)) {
         printf("PING %s (%s): %d data bytes, id 0x%04x = %d\n",
             argv[1],
-            inet_ntoa(*(struct in_addr *)&dest_addr),
+            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr),
             PKT_SIZE - (int)sizeof(struct icmphdr),
             getpid() & 0xFFFF,
             getpid() & 0xFFFF);
@@ -252,9 +264,9 @@ int main(int argc, char *argv[]) {
     } else {
         printf("PING %s (%s): %ld data bytes\n", 
             argv[1], 
-            inet_ntoa(*(struct in_addr *)&dest_addr), 
+            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr), 
             PKT_SIZE - sizeof(struct icmphdr));
     }
     
-    return ping_loop(sock, &dest);
+    return ping_loop(g_ping.sock, &dest);
 }

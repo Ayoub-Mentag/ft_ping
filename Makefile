@@ -7,16 +7,20 @@ BONUS_SRCS = src/ping_bonus.c
 OBJS = $(SRCS:.c=.o)
 BONUS_OBJS = $(BONUS_SRCS:.c=.o)
 INCLUDE = include/
+HEADERS = include/ping.h
 BONUS_NAME=ft_ping_bonus
+
 all: $(NAME)
 
 $(NAME): $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
 
-%.o : %.c
+%.o : %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-bonus: $(BONUS_OBJS)
+bonus: $(BONUS_NAME)
+
+$(BONUS_NAME): $(BONUS_OBJS)
 	$(CC) $(CFLAGS) $(BONUS_OBJS) -o $(BONUS_NAME)
 
 clean:
@@ -26,3 +30,5 @@ fclean: clean
 	rm -f $(NAME) $(BONUS_NAME)
 
 re: fclean all
+
+.PHONY: all clean fclean re
