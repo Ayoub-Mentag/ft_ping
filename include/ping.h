@@ -12,9 +12,14 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <signal.h>
+#include <netdb.h>
 
 #define PKT_SIZE 64
-#define TIMEOUT_SEC 5
+#define HOSTNAME_MAX 256
+#define FLAGS_MANDA  "v?"
+#define FLAGS_BONUS "v?ncWwp"
+#define FLAGS_MANDA_LEN  2
+#define FLAGS_BONUS_LEN  7
 
 int sock = -1;
 int tx_count = 0;
