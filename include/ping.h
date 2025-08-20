@@ -13,7 +13,9 @@
 #include <errno.h>
 #include <signal.h>
 #include <netdb.h>
-
+#include <stdbool.h>
+#include <ctype.h>
+#include <time.h>
 #define PKT_SIZE 64
 #define HOSTNAME_MAX 256
 #define FLAGS_MANDA  "v"
