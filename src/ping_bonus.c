@@ -51,23 +51,23 @@ void cleanup(int sig) {
     exit(0);
 }
 
-int init_socket() {
+int init_socket(FlagsData* flagsData) {
+    struct timeval tv_out;
     int s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+
     if (s < 0) {
         perror("socket");
         fprintf(stderr, "You need to be root to create raw sockets!\n");
         return -1;
     }
     
-    // Disable timeout
-    // struct timeval tv_out;
-    // tv_out.tv_sec = TIMEOUT_SEC;
-    // tv_out.tv_usec = 0;
-    // if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out)) < 0) {
-    //     perror("setsockopt SO_RCVTIMEO");
-    //     close(s);
-    //     return -1;
-    // }
+    tv_out.tv_sec = flagsData->W;
+    tv_out.tv_usec = 0;
+    if (setsockopt(s, SOL_SOCKET, flagsData->W, &tv_out, sizeof(tv_out)) < 0) {
+        perror("setsockopt SO_RCVTIMEO");
+        close(s);
+        return -1;
+    }
     
     return s;
 }
@@ -127,22 +127,22 @@ void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from,
     }
 }
 
-int ping_loop(int sock, struct sockaddr_in *dest) {
+int ping_loop(int sock, struct sockaddr_in *dest, FlagsData *flagsData) {
     char sendbuf[PKT_SIZE];
     char recvbuf[PKT_SIZE + sizeof(struct ip)];
     struct sockaddr_in from;
     struct timeval tv_start, tv_end;
     int bytes;
-    
-    while (1) {
+    bool infinite = !flagsData->c && !flagsData->w;
+
+    while (infinite || flagsData->c-- || time(NULL) - time(NULL) < flagsData->w) {
         prep_packet(sendbuf, g_ping.tx_count++);
         
         gettimeofday(&tv_start, NULL);
         
         bytes = send_packet(sock, sendbuf, dest);
-        if (bytes < 0) {
+        if (bytes < 0)
             continue;
-        }
         
         bytes = receive_packet(sock, recvbuf, sizeof(recvbuf), &from);
         
@@ -164,10 +164,6 @@ int ping_loop(int sock, struct sockaddr_in *dest) {
     return 0;
 }
 
-void handleFlag(char c) {
-    printf("Flag is %c\n", c);
-}
-
 void help() {
     printf(
             "Usage: ping [OPTION...] HOST ...\n"
@@ -177,13 +173,18 @@ void help() {
             "\n"
             " -v,             verbose output\n"
             " -?              give this help list\n"
+            "-n               Numeric output only\n"
+            "-c               Send only a specified number of packets\n"
+            "-W               Timeout per packet\n"
+            "-w               Timeout total\n"
+            "-p               Fill the ICMP payload with a repeating byte pattern\n"
             "\n"
         );
     exit(0);
 }
 
-void verifyAddr(char *argv, struct FlagsData* flagsData) {
-    if (flags->n) {
+void verifyAddr(char *argv, bool n) {
+    if (n) {
         if (inet_pton(AF_INET, argv, &g_ping.dest_addr) <= 0) {
             fprintf(stderr, "Invalid numeric IP: %s\n", argv);
             exit(1);
@@ -272,7 +273,7 @@ int isNumber(const char *s) {
     return 1;
 }
 
-void parsing(int argc, char **argv, FlagsData *flagsData, char **addr) {
+void parsing(int argc, char **argv, FlagsData *flagsData, char *addr) {
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             for (int j = 1; argv[i][j] != '\0'; j++) {
@@ -304,16 +305,16 @@ void parsing(int argc, char **argv, FlagsData *flagsData, char **addr) {
                         // If argument is stuck to the flag (-c10), use the rest of the string
                         if (argv[i][j+1] != '\0') {
                             tmp = argv[i] + j + 1;
-                            j = (int)strlen(argv[i]) - 1; // jump to end (avoid re-reading characters)
                         } else {
                             // Otherwise, take next argv
                             if (i + 1 >= argc) {
                                 fprintf(stderr, "Option -%c requires an argument\n", currentChar);
                                 exit(1);
                             }
-                            tmp = argv[++i];
+                            tmp = argv[i + 1];
+                            i++;
                         }
-
+                        j = (int)strlen(argv[i]) - 1;
                         if (currentChar == 'c') {
                             if (!isNumber(tmp)) {
                                 fprintf(stderr, "Invalid argument for -c: %s\n", tmp);
@@ -341,70 +342,64 @@ void parsing(int argc, char **argv, FlagsData *flagsData, char **addr) {
                         break;
                 }
             }
-        } else {
-            if (*addr == NULL) {
-                *addr = argv[i];
-            } else {
-                fprintf(stderr, "Multiple destinations not allowed: %s\n", argv[i]);
-                exit(1);
-            }
+        } else if (!strlen(addr)) {
+            addr = argv[i];
         }
     }
 
-    if (*addr == NULL) {
+    if (!strlen(addr)) {
         fprintf(stderr, "Destination address required\n");
         exit(1);
     }
 
     debugFlags(flagsData);
-
-    // verifyAddr(addr);
+    // printf("Addr %s\n", addr);
+    verifyAddr(addr, flagsData->n);
 }
 
 
 int main(int argc, char *argv[]) {
-    char flags[FLAGS_BONUS_LEN] = "";
+    // char flags[FLAGS_BONUS_LEN] = "";
     char *addr = "";
     FlagsData flagsData;
-    flagsData.n = false;
-    flagsData.v = false;
-    flagsData.count = -1;
+    flagsData.n = 0;
+    flagsData.v = 0;
+    flagsData.c = -1;
     flagsData.W = 0; // timeoute for each reply
     flagsData.w = -1;
     flagsData.p = NULL;
 
-    parsing(argv, argc, flagsData, addr);
+    parsing(argc, argv, &flagsData, addr);
 
-    return 0;
-    // g_ping.sock = -1;
-    // g_ping.tx_count = 0;
-    // g_ping.rx_count = 0;
+    g_ping.sock = -1;
+    g_ping.tx_count = 0;
+    g_ping.rx_count = 0;
     
-    // g_ping.sock = init_socket();
-    // if (g_ping.sock < 0)
-    //     return 1;
+    g_ping.sock = init_socket(&flagsData);
+    if (g_ping.sock < 0)
+        return 1;
 
-    // signal(SIGINT, cleanup);
+    signal(SIGINT, cleanup);
 
-    // struct sockaddr_in dest;
-    // memset(&dest, 0, sizeof(dest));
-    // dest.sin_family = AF_INET;
-    // dest.sin_addr.s_addr = g_ping.dest_addr;
+    struct sockaddr_in dest;
+    memset(&dest, 0, sizeof(dest));
+    dest.sin_family = AF_INET;
+    dest.sin_addr.s_addr = g_ping.dest_addr;
 
-    // if (strlen(flags)) {
-    //     printf("PING %s (%s): %d data bytes, id 0x%04x = %d\n",
-    //         argv[1],
-    //         inet_ntoa(*(struct in_addr *)&g_ping.dest_addr),
-    //         PKT_SIZE - (int)sizeof(struct icmphdr),
-    //         getpid() & 0xFFFF,
-    //         getpid() & 0xFFFF);
+    if (flagsData.v) {
+        printf("PING %s (%s): %d data bytes, id 0x%04x = %d\n",
+            argv[1],
+            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr),
+            PKT_SIZE - (int)sizeof(struct icmphdr),
+            getpid() & 0xFFFF,
+            getpid() & 0xFFFF);
 
-    // } else {
-    //     printf("PING %s (%s): %ld data bytes\n", 
-    //         argv[1], 
-    //         inet_ntoa(*(struct in_addr *)&g_ping.dest_addr), 
-    //         PKT_SIZE - sizeof(struct icmphdr));
-    // }
+    } else {
+        printf("PING %s (%s): %ld data bytes\n", 
+            argv[1], 
+            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr), 
+            PKT_SIZE - sizeof(struct icmphdr));
+    }
     
-    // return ping_loop(g_ping.sock, &dest);
+    return ping_loop(g_ping.sock, &dest, &flagsData);
 }
