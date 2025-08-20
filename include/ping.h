@@ -16,10 +16,10 @@
 
 #define PKT_SIZE 64
 #define HOSTNAME_MAX 256
-#define FLAGS_MANDA  "v?"
-#define FLAGS_BONUS "v?ncWwp"
-#define FLAGS_MANDA_LEN  2
-#define FLAGS_BONUS_LEN  7
+#define FLAGS_MANDA  "v"
+#define FLAGS_BONUS "vncWwp"
+#define FLAGS_MANDA_LEN  1
+#define FLAGS_BONUS_LEN  6
 
 
 typedef struct {
@@ -30,5 +30,15 @@ typedef struct {
 } PingData;
 
 PingData g_ping;
+
+
+typedef struct {
+    bool n;  // numeric
+    bool v;  // verbose
+    int c;   // count
+    int W;   // timeout for each reply
+    int w;   // delay
+    char *p; // payload
+} FlagsData;
 
 #endif

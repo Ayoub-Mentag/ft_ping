@@ -182,8 +182,8 @@ void help() {
     exit(0);
 }
 
-void verifyAddr(char *argv, char *flags) {
-    if (strchr(flags, 'n')) {
+void verifyAddr(char *argv, struct FlagsData* flagsData) {
+    if (flags->n) {
         if (inet_pton(AF_INET, argv, &g_ping.dest_addr) <= 0) {
             fprintf(stderr, "Invalid numeric IP: %s\n", argv);
             exit(1);
@@ -201,7 +201,78 @@ void verifyAddr(char *argv, char *flags) {
     }
 }
 
-void parsing(char **argv, int argc, char *flags, char *addr) {
+// void parsing(char **argv, int argc, FlagsData *flagsData, char *addr) {
+//     for (int i = 1; i < argc; i++) {
+//         if (argv[i][0] == '-') {
+//             for (int j = 1; argv[i][j] != '\0'; j++) {
+//                 char currentChar = argv[i][j];
+//                 if (currentChar == '?')
+//                     help();
+//                 if (strchr(FLAGS_BONUS, currentChar) == NULL) {
+//                     fprintf(stderr, "Invalid flag: -%c\n", currentChar);
+//                     exit(1);
+//                 }
+//                 switch (currentChar) {
+//                     case 'n':
+//                         flagsData.n = true;
+//                     case 'v':
+//                         flagsData.v = true;
+//                         break ;
+//                     case 'c':
+//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
+//                         if (tmp.isNotNumber)
+//                             fprintf(stderr, "Invalid option"); exit(1);
+//                         flagsData.c = atoi(tmp);
+//                         break ;
+//                     case 'W':
+//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
+//                         if (tmp.isNotNumber)
+//                             fprintf(stderr, "Invalid option"); exit(1);
+//                         flagsData.W = atoi(tmp);
+//                         break ;
+//                     case 'w':
+//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
+//                         if (tmp.isNotNumber)
+//                             fprintf(stderr, "Invalid option"); exit(1);
+//                         flagsData.w = atoi(tmp);
+//                         break ;
+//                     case 'p':
+//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
+//                         flagsData.p = tmp;
+//                         break ;
+//                     default:
+//                         break ;
+//                 }
+//             }
+//         } else if (strlen(addr) == 0)
+//             addr = argv[i];
+//     }
+//     printf("FLAGS %s\n", flags);
+//     printf("addrs %s\n", addr);
+//     printf("------------------------------------\n");
+//     verifyAddr(addr, flags);
+// }
+
+void debugFlags(const FlagsData *f) {
+    printf("---- FlagsData Debug ----\n");
+    printf("n (numeric): %s\n", f->n ? "true" : "false");
+    printf("v (verbose): %s\n", f->v ? "true" : "false");
+    printf("c (count):   %d\n", f->c);
+    printf("W (timeout): %d\n", f->W);
+    printf("w (delay):   %d\n", f->w);
+    printf("p (pattern): %s\n", f->p ? f->p : "(null)");
+    printf("-------------------------\n");
+}
+
+int isNumber(const char *s) {
+    if (s == NULL || *s == '\0') return 0;
+    for (int i = 0; s[i]; i++) {
+        if (!isdigit((unsigned char)s[i])) return 0;
+    }
+    return 1;
+}
+
+void parsing(int argc, char **argv, FlagsData *flagsData, char **addr) {
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             for (int j = 1; argv[i][j] != '\0'; j++) {
@@ -210,63 +281,130 @@ void parsing(char **argv, int argc, char *flags, char *addr) {
                 if (currentChar == '?')
                     help();
 
-                if (strchr(FLAGS_BONUS, currentChar) == NULL) {
+                if (strchr("nvcWwp", currentChar) == NULL) {
                     fprintf(stderr, "Invalid flag: -%c\n", currentChar);
                     exit(1);
                 }
 
-                if (strchr(flags, currentChar) == NULL) {
-                    size_t len = strlen(flags);
-                    if (len + 1 < sizeof(flags)) {
-                        flags[len] = currentChar;
-                        flags[len + 1] = '\0';
-                    }
+                char *tmp = NULL;
+
+                switch (currentChar) {
+                    case 'n':
+                        flagsData->n = true;
+                        break;
+
+                    case 'v':
+                        flagsData->v = true;
+                        break;
+
+                    case 'c':
+                    case 'W':
+                    case 'w':
+                    case 'p':
+                        // If argument is stuck to the flag (-c10), use the rest of the string
+                        if (argv[i][j+1] != '\0') {
+                            tmp = argv[i] + j + 1;
+                            j = (int)strlen(argv[i]) - 1; // jump to end (avoid re-reading characters)
+                        } else {
+                            // Otherwise, take next argv
+                            if (i + 1 >= argc) {
+                                fprintf(stderr, "Option -%c requires an argument\n", currentChar);
+                                exit(1);
+                            }
+                            tmp = argv[++i];
+                        }
+
+                        if (currentChar == 'c') {
+                            if (!isNumber(tmp)) {
+                                fprintf(stderr, "Invalid argument for -c: %s\n", tmp);
+                                exit(1);
+                            }
+                            flagsData->c = atoi(tmp);
+                        } else if (currentChar == 'W') {
+                            if (!isNumber(tmp)) {
+                                fprintf(stderr, "Invalid argument for -W: %s\n", tmp);
+                                exit(1);
+                            }
+                            flagsData->W = atoi(tmp);
+                        } else if (currentChar == 'w') {
+                            if (!isNumber(tmp)) {
+                                fprintf(stderr, "Invalid argument for -w: %s\n", tmp);
+                                exit(1);
+                            }
+                            flagsData->w = atoi(tmp);
+                        } else if (currentChar == 'p') {
+                            flagsData->p = tmp;
+                        }
+                        break;
+
+                    default:
+                        break;
                 }
             }
-        } else if (strlen(addr) == 0)
-            addr = argv[i];
+        } else {
+            if (*addr == NULL) {
+                *addr = argv[i];
+            } else {
+                fprintf(stderr, "Multiple destinations not allowed: %s\n", argv[i]);
+                exit(1);
+            }
+        }
     }
-    printf("FLAGS %s\n", flags);
-    printf("addrs %s\n", addr);
-    printf("------------------------------------\n");
-    verifyAddr(addr, flags);
+
+    if (*addr == NULL) {
+        fprintf(stderr, "Destination address required\n");
+        exit(1);
+    }
+
+    debugFlags(flagsData);
+
+    // verifyAddr(addr);
 }
+
 
 int main(int argc, char *argv[]) {
     char flags[FLAGS_BONUS_LEN] = "";
     char *addr = "";
+    FlagsData flagsData;
+    flagsData.n = false;
+    flagsData.v = false;
+    flagsData.count = -1;
+    flagsData.W = 0; // timeoute for each reply
+    flagsData.w = -1;
+    flagsData.p = NULL;
 
-    parsing(argv, argc, flags, addr);
+    parsing(argv, argc, flagsData, addr);
 
-    g_ping.sock = -1;
-    g_ping.tx_count = 0;
-    g_ping.rx_count = 0;
+    return 0;
+    // g_ping.sock = -1;
+    // g_ping.tx_count = 0;
+    // g_ping.rx_count = 0;
     
-    g_ping.sock = init_socket();
-    if (g_ping.sock < 0)
-        return 1;
+    // g_ping.sock = init_socket();
+    // if (g_ping.sock < 0)
+    //     return 1;
 
-    signal(SIGINT, cleanup);
+    // signal(SIGINT, cleanup);
 
-    struct sockaddr_in dest;
-    memset(&dest, 0, sizeof(dest));
-    dest.sin_family = AF_INET;
-    dest.sin_addr.s_addr = g_ping.dest_addr;
+    // struct sockaddr_in dest;
+    // memset(&dest, 0, sizeof(dest));
+    // dest.sin_family = AF_INET;
+    // dest.sin_addr.s_addr = g_ping.dest_addr;
 
-    if (strlen(flags)) {
-        printf("PING %s (%s): %d data bytes, id 0x%04x = %d\n",
-            argv[1],
-            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr),
-            PKT_SIZE - (int)sizeof(struct icmphdr),
-            getpid() & 0xFFFF,
-            getpid() & 0xFFFF);
+    // if (strlen(flags)) {
+    //     printf("PING %s (%s): %d data bytes, id 0x%04x = %d\n",
+    //         argv[1],
+    //         inet_ntoa(*(struct in_addr *)&g_ping.dest_addr),
+    //         PKT_SIZE - (int)sizeof(struct icmphdr),
+    //         getpid() & 0xFFFF,
+    //         getpid() & 0xFFFF);
 
-    } else {
-        printf("PING %s (%s): %ld data bytes\n", 
-            argv[1], 
-            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr), 
-            PKT_SIZE - sizeof(struct icmphdr));
-    }
+    // } else {
+    //     printf("PING %s (%s): %ld data bytes\n", 
+    //         argv[1], 
+    //         inet_ntoa(*(struct in_addr *)&g_ping.dest_addr), 
+    //         PKT_SIZE - sizeof(struct icmphdr));
+    // }
     
-    return ping_loop(g_ping.sock, &dest);
+    // return ping_loop(g_ping.sock, &dest);
 }
