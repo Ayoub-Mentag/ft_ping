@@ -61,28 +61,37 @@ int init_socket(FlagsData* flagsData) {
         return -1;
     }
     
-    tv_out.tv_sec = flagsData->W;
-    tv_out.tv_usec = 0;
-    if (setsockopt(s, SOL_SOCKET, flagsData->W, &tv_out, sizeof(tv_out)) < 0) {
-        perror("setsockopt SO_RCVTIMEO");
-        close(s);
-        return -1;
+    if (flagsData->W) {
+        tv_out.tv_sec = flagsData->W;
+        tv_out.tv_usec = 0;
+        if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out)) < 0) {
+            perror("setsockopt SO_RCVTIMEO");
+            close(s);
+            return -1;
+        }
     }
     
     return s;
 }
 
-void prep_packet(char *sendbuf, int seq) {
+void prep_packet(char *sendbuf, int seq, char* payload) {
     memset(sendbuf, 0, PKT_SIZE);
     struct icmp *icmp_pkt = (struct icmp *)sendbuf;
-    
+
     icmp_pkt->icmp_type = ICMP_ECHO;
     icmp_pkt->icmp_code = 0;
     icmp_pkt->icmp_id = getpid() & 0xFFFF;
     icmp_pkt->icmp_seq = seq;
-    
-    memset(sendbuf + sizeof(struct icmphdr), 0x42, PKT_SIZE - sizeof(struct icmphdr));
-    
+
+    if (strlen(payload))
+        memset(sendbuf + sizeof(struct icmphdr),
+            payload,
+            PKT_SIZE - sizeof(struct icmphdr));
+    else
+        bzero(sendbuf + sizeof(struct icmphdr),
+            payload,
+            PKT_SIZE - sizeof(struct icmphdr));
+    printf("payload %s %d\n", payload, strlen(payload))
     icmp_pkt->icmp_cksum = 0;
     icmp_pkt->icmp_cksum = in_cksum((unsigned short *)icmp_pkt, PKT_SIZE);
 }
@@ -134,20 +143,22 @@ int ping_loop(int sock, struct sockaddr_in *dest, FlagsData *flagsData) {
     struct timeval tv_start, tv_end;
     int bytes;
     bool infinite = !flagsData->c && !flagsData->w;
+    time_t start = time(NULL);
 
-    while (infinite || flagsData->c-- || time(NULL) - time(NULL) < flagsData->w) {
-        prep_packet(sendbuf, g_ping.tx_count++);
-        
+    if (flagsData->c && flagsData->w)
+        flags->c = flags->w;
+
+    while (infinite || flagsData->c-- > 0 || time(NULL) - start < flagsData->w) {
+        prep_packet(sendbuf, g_ping.tx_count++, flagsData->p);
         gettimeofday(&tv_start, NULL);
-        
+
         bytes = send_packet(sock, sendbuf, dest);
         if (bytes < 0)
             continue;
-        
+
         bytes = receive_packet(sock, recvbuf, sizeof(recvbuf), &from);
-        
         gettimeofday(&tv_end, NULL);
-        
+
         if (bytes < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 printf("Request timeout for icmp_seq=%d\n", g_ping.tx_count - 1);
@@ -157,10 +168,9 @@ int ping_loop(int sock, struct sockaddr_in *dest, FlagsData *flagsData) {
         } else {
             process_reply(recvbuf, bytes, &from, g_ping.tx_count - 1, &tv_start, &tv_end);
         }
-        
         sleep(1);
     }
-    
+    cleanup(0);
     return 0;
 }
 
@@ -364,10 +374,10 @@ int main(int argc, char *argv[]) {
     FlagsData flagsData;
     flagsData.n = 0;
     flagsData.v = 0;
-    flagsData.c = -1;
+    flagsData.c = 0;
     flagsData.W = 0; // timeoute for each reply
-    flagsData.w = -1;
-    flagsData.p = NULL;
+    flagsData.w = 0;
+    flagsData.p = "";
 
     parsing(argc, argv, &flagsData, addr);
 
