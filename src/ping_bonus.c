@@ -155,7 +155,6 @@ int ping_loop(int sock, struct sockaddr_in *dest, FlagsData *flagsData) {
         bytes = send_packet(sock, sendbuf, dest);
         if (bytes < 0)
             continue;
-
         bytes = receive_packet(sock, recvbuf, sizeof(recvbuf), &from);
         gettimeofday(&tv_end, NULL);
 
