@@ -70,7 +70,7 @@ int init_socket(FlagsData* flagsData) {
             return -1;
         }
     }
-    
+
     return s;
 }
 
@@ -87,8 +87,7 @@ void print_packet(const char *buf, size_t len) {
 
 
 void prep_packet(char *sendbuf, int seq, char* payload) {
-    (void)payload;
-    // size_t data_len = strlen(payload);
+    size_t data_len = strlen(payload);
 
     memset(sendbuf, 0, PKT_SIZE);
     struct icmp *icmp_pkt = (struct icmp *)sendbuf;
@@ -99,20 +98,20 @@ void prep_packet(char *sendbuf, int seq, char* payload) {
     icmp_pkt->icmp_seq = seq;
 
     // Start of data section (just after header)
-    // char *data_ptr = sendbuf + sizeof(struct icmp);
+    char *data_ptr = sendbuf + sizeof(struct icmp);
 
-    // size_t data_space = PKT_SIZE - sizeof(struct icmp);
+    size_t data_space = PKT_SIZE - sizeof(struct icmp);
 
-    // if (data_len > 0) {
-    //     for (size_t i = 0; i < data_space; i++) {
-    //         data_ptr[i] = payload[i % data_len];  // repeat pattern
-    //     }
-    // }
+    if (data_len > 0) {
+        for (size_t i = 0; i < data_space; i++) {
+            data_ptr[i] = payload[i % data_len];  // repeat pattern
+        }
+    }
 
     icmp_pkt->icmp_cksum = 0;
     icmp_pkt->icmp_cksum = in_cksum((unsigned short *)icmp_pkt, PKT_SIZE);
 
-    // print_packet(sendbuf, PKT_SIZE);
+    print_packet(sendbuf, PKT_SIZE);
 }
 
 
@@ -233,58 +232,6 @@ void verifyAddr(char *argv, bool n) {
         g_ping.dest_addr = resolved.s_addr;
     }
 }
-
-// void parsing(char **argv, int argc, FlagsData *flagsData, char *addr) {
-//     for (int i = 1; i < argc; i++) {
-//         if (argv[i][0] == '-') {
-//             for (int j = 1; argv[i][j] != '\0'; j++) {
-//                 char currentChar = argv[i][j];
-//                 if (currentChar == '?')
-//                     help();
-//                 if (strchr(FLAGS_BONUS, currentChar) == NULL) {
-//                     fprintf(stderr, "Invalid flag: -%c\n", currentChar);
-//                     exit(1);
-//                 }
-//                 switch (currentChar) {
-//                     case 'n':
-//                         flagsData.n = true;
-//                     case 'v':
-//                         flagsData.v = true;
-//                         break ;
-//                     case 'c':
-//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
-//                         if (tmp.isNotNumber)
-//                             fprintf(stderr, "Invalid option"); exit(1);
-//                         flagsData.c = atoi(tmp);
-//                         break ;
-//                     case 'W':
-//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
-//                         if (tmp.isNotNumber)
-//                             fprintf(stderr, "Invalid option"); exit(1);
-//                         flagsData.W = atoi(tmp);
-//                         break ;
-//                     case 'w':
-//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
-//                         if (tmp.isNotNumber)
-//                             fprintf(stderr, "Invalid option"); exit(1);
-//                         flagsData.w = atoi(tmp);
-//                         break ;
-//                     case 'p':
-//                         char *tmp = strlen(argv[i]) > 2 ? argv[i] + j : argv[++i];
-//                         flagsData.p = tmp;
-//                         break ;
-//                     default:
-//                         break ;
-//                 }
-//             }
-//         } else if (strlen(addr) == 0)
-//             addr = argv[i];
-//     }
-//     printf("FLAGS %s\n", flags);
-//     printf("addrs %s\n", addr);
-//     printf("------------------------------------\n");
-//     verifyAddr(addr, flags);
-// }
 
 void debugFlags(const FlagsData *f) {
     printf("---- FlagsData Debug ----\n");
