@@ -33,6 +33,6 @@ re: fclean all
 
 docker:
 	docker build -t ping .
-	docker run -it --name ping -v $(pwd):/app:cached ping
+	docker run -it --name ping -v $(shell pwd):/app:cached ping
 
 .PHONY: all clean fclean re

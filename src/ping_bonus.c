@@ -74,7 +74,22 @@ int init_socket(FlagsData* flagsData) {
     return s;
 }
 
+void print_packet(const char *buf, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        printf("%02x ", (unsigned char)buf[i]);  // always 2 digits
+        if ((i + 1) % 16 == 0)
+            printf("\n");
+    }
+    if (len % 16 != 0)
+        printf("\n");
+}
+
+
+
 void prep_packet(char *sendbuf, int seq, char* payload) {
+    (void)payload;
+    // size_t data_len = strlen(payload);
+
     memset(sendbuf, 0, PKT_SIZE);
     struct icmp *icmp_pkt = (struct icmp *)sendbuf;
 
@@ -83,18 +98,23 @@ void prep_packet(char *sendbuf, int seq, char* payload) {
     icmp_pkt->icmp_id = getpid() & 0xFFFF;
     icmp_pkt->icmp_seq = seq;
 
-    if (strlen(payload))
-        memset(sendbuf + sizeof(struct icmphdr),
-            payload,
-            PKT_SIZE - sizeof(struct icmphdr));
-    else
-        bzero(sendbuf + sizeof(struct icmphdr),
-            payload,
-            PKT_SIZE - sizeof(struct icmphdr));
-    printf("payload %s %d\n", payload, strlen(payload))
+    // Start of data section (just after header)
+    // char *data_ptr = sendbuf + sizeof(struct icmp);
+
+    // size_t data_space = PKT_SIZE - sizeof(struct icmp);
+
+    // if (data_len > 0) {
+    //     for (size_t i = 0; i < data_space; i++) {
+    //         data_ptr[i] = payload[i % data_len];  // repeat pattern
+    //     }
+    // }
+
     icmp_pkt->icmp_cksum = 0;
     icmp_pkt->icmp_cksum = in_cksum((unsigned short *)icmp_pkt, PKT_SIZE);
+
+    // print_packet(sendbuf, PKT_SIZE);
 }
+
 
 int send_packet(int sock, char *sendbuf, struct sockaddr_in *dest) {
     int bytes = sendto(sock, sendbuf, PKT_SIZE, 0, 
@@ -146,9 +166,13 @@ int ping_loop(int sock, struct sockaddr_in *dest, FlagsData *flagsData) {
     time_t start = time(NULL);
 
     if (flagsData->c && flagsData->w)
-        flags->c = flags->w;
+        flagsData->c = flagsData->w;
 
     while (infinite || flagsData->c-- > 0 || time(NULL) - start < flagsData->w) {
+        // printf("infinite => %d\n", infinite);
+        // printf("flagsData->c => %d\n", flagsData->c);
+        // printf("flagsData->w => %d\n", flagsData->w);
+
         prep_packet(sendbuf, g_ping.tx_count++, flagsData->p);
         gettimeofday(&tv_start, NULL);
 
@@ -157,7 +181,6 @@ int ping_loop(int sock, struct sockaddr_in *dest, FlagsData *flagsData) {
             continue;
         bytes = receive_packet(sock, recvbuf, sizeof(recvbuf), &from);
         gettimeofday(&tv_end, NULL);
-
         if (bytes < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 printf("Request timeout for icmp_seq=%d\n", g_ping.tx_count - 1);
@@ -362,7 +385,7 @@ void parsing(int argc, char **argv, FlagsData *flagsData, char *addr) {
     }
 
     debugFlags(flagsData);
-    // printf("Addr %s\n", addr);
+    printf("Addr %s\n", addr);
     verifyAddr(addr, flagsData->n);
 }
 
@@ -374,7 +397,7 @@ int main(int argc, char *argv[]) {
     flagsData.n = 0;
     flagsData.v = 0;
     flagsData.c = 0;
-    flagsData.W = 0; // timeoute for each reply
+    flagsData.W = 0;
     flagsData.w = 0;
     flagsData.p = "";
 
