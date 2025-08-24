@@ -1,29 +1,43 @@
-FROM debian:bullseye
+# Dockerfile for setting up the project environment
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    gcc \
-    make \
-    zsh \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+FROM debian:buster
 
-# Install Oh My Zsh (non-interactive)
-RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Set default shell to zsh
-SHELL ["/bin/zsh", "-c"]
+# Replace sources.list with archive.debian.org entries for buster
+RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list \
+  && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until
 
-# Set work directory
-WORKDIR /app
+# Install dependencies and remove iputils-ping
+RUN apt-get update \
+  && apt-get remove -y iputils-ping || true \
+  && apt-get install -y --no-install-recommends \
+        apt-utils \
+        ca-certificates \
+        make \
+        build-essential \
+        wget \
+        tar \
+        netbase \
+  && rm -rf /var/lib/apt/lists/*
 
-# Copy project sources
-COPY . .
+# Build and install inetutils 2.0 (for ping)
+WORKDIR /tmp
+RUN wget http://ftp.gnu.org/gnu/inetutils/inetutils-2.0.tar.gz \
+  && tar xzf inetutils-2.0.tar.gz \
+  && cd inetutils-2.0 \
+  && ./configure --disable-servers \
+  && make \
+  && make install \
+  && cd .. \
+  && rm -rf inetutils-2.0*
 
-# Optional: build your project
-# RUN make
+# Create the ft_ping directory and set it as the working directory
+WORKDIR /
+VOLUME /ft_ping
+WORKDIR /ft_ping
 
-# Default command when container starts
-CMD ["zsh"]
+COPY . ft_ping
+
+CMD ["/bin/bash"]

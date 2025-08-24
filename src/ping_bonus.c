@@ -5,8 +5,8 @@ int resolve_hostname(const char *hostname, struct in_addr *addr) {
     int ret;
 
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;      // Force IPv4
-    hints.ai_socktype = SOCK_RAW;   // Raw socket
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_RAW;
 
     ret = getaddrinfo(hostname, NULL, &hints, &res);
     if (ret != 0) {
@@ -37,21 +37,28 @@ unsigned short in_cksum(unsigned short *addr, int count) {
 
 void cleanup(int sig) {
     (void)sig;
-    printf("\n--- %s ping statistics ---\n", inet_ntoa(*(struct in_addr *)&g_ping.dest_addr));
+    printf("\n--- %s ping statistics ---\n", g_ping.addr);
     
     float loss = 0.0;
     if (g_ping.tx_count > 0)
         loss = 100.0 * (g_ping.tx_count - g_ping.rx_count) / g_ping.tx_count;
-    
+
     printf("%d packets transmitted, %d received, %.1f%% packet loss\n",
             g_ping.tx_count, g_ping.rx_count, loss);
-    
+
+    printf("round-trip min/avg/max/stddev = %.2f/%.2f/%.2f/%.2f ms\n",
+        g_ping.min,
+        g_ping.avg / g_ping.rx_count,
+        g_ping.max,
+        0.0);
+
+
     if (g_ping.sock >= 0) 
         close(g_ping.sock);
     exit(0);
 }
 
-int init_socket(FlagsData* flagsData) {
+int init_socket(ArgsData* argsData) {
     struct timeval tv_out;
     int s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
@@ -61,8 +68,8 @@ int init_socket(FlagsData* flagsData) {
         return -1;
     }
     
-    if (flagsData->W) {
-        tv_out.tv_sec = flagsData->W;
+    if (argsData->W) {
+        tv_out.tv_sec = argsData->W;
         tv_out.tv_usec = 0;
         if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out)) < 0) {
             perror("setsockopt SO_RCVTIMEO");
@@ -76,7 +83,7 @@ int init_socket(FlagsData* flagsData) {
 
 void print_packet(const char *buf, size_t len) {
     for (size_t i = 0; i < len; i++) {
-        printf("%02x ", (unsigned char)buf[i]);  // always 2 digits
+        printf("%02x ", (unsigned char)buf[i]);
         if ((i + 1) % 16 == 0)
             printf("\n");
     }
@@ -97,30 +104,26 @@ void prep_packet(char *sendbuf, int seq, char* payload) {
     icmp_pkt->icmp_id = getpid() & 0xFFFF;
     icmp_pkt->icmp_seq = seq;
 
-    // Start of data section (just after header)
     char *data_ptr = sendbuf + sizeof(struct icmp);
 
     size_t data_space = PKT_SIZE - sizeof(struct icmp);
 
     if (data_len > 0) {
         for (size_t i = 0; i < data_space; i++) {
-            data_ptr[i] = payload[i % data_len];  // repeat pattern
+            data_ptr[i] = payload[i % data_len];
         }
     }
 
     icmp_pkt->icmp_cksum = 0;
     icmp_pkt->icmp_cksum = in_cksum((unsigned short *)icmp_pkt, PKT_SIZE);
-
-    print_packet(sendbuf, PKT_SIZE);
 }
 
 
 int send_packet(int sock, char *sendbuf, struct sockaddr_in *dest) {
     int bytes = sendto(sock, sendbuf, PKT_SIZE, 0, 
                       (struct sockaddr *)dest, sizeof(*dest));
-    if (bytes < 0) {
+    if (bytes < 0)
         perror("sendto failed");
-    }
     return bytes;
 }
 
@@ -143,9 +146,16 @@ void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from,
         
         g_ping.rx_count++;
         
-        double rtt = (tv_end->tv_sec - tv_start->tv_sec) * 1000.0 +
+        float rtt = (tv_end->tv_sec - tv_start->tv_sec) * 1000.0 +
                 (tv_end->tv_usec - tv_start->tv_usec) / 1000.0;
-        
+        if (g_ping.min > rtt)
+            g_ping.min = rtt;
+
+        if (g_ping.max < rtt)
+            g_ping.max = rtt;
+
+        g_ping.avg += rtt;
+
         printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
             bytes - hlen,
             inet_ntoa(from->sin_addr),
@@ -155,40 +165,49 @@ void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from,
     }
 }
 
-int ping_loop(int sock, struct sockaddr_in *dest, FlagsData *flagsData) {
+void printHeader(ArgsData *argsData) {
+    int data_bytes = PKT_SIZE - (int)sizeof(struct icmphdr);
+    char *ip_str = inet_ntoa(*(struct in_addr *)&g_ping.dest_addr);
+
+    printf("PING %s (%s): %d data bytes", g_ping.addr, ip_str, data_bytes);
+
+    if (argsData->v) {
+        int pid = getpid() & 0xFFFF;
+        printf(", id 0x%04x = %d", pid, pid);
+    }
+
+    printf("\n");
+}
+
+int ping_loop(int sock, struct sockaddr_in *dest, ArgsData *argsData) {
     char sendbuf[PKT_SIZE];
     char recvbuf[PKT_SIZE + sizeof(struct ip)];
     struct sockaddr_in from;
     struct timeval tv_start, tv_end;
     int bytes;
-    bool infinite = !flagsData->c && !flagsData->w;
-    time_t start = time(NULL);
+    bool infinite = !argsData->c && !argsData->w;
+    time_t start;
 
-    if (flagsData->c && flagsData->w)
-        flagsData->c = flagsData->w;
+    printHeader(argsData);
+    start = time(NULL);
+    if (argsData->c && argsData->w)
+        argsData->c = argsData->w;
 
-    while (infinite || flagsData->c-- > 0 || time(NULL) - start < flagsData->w) {
-        // printf("infinite => %d\n", infinite);
-        // printf("flagsData->c => %d\n", flagsData->c);
-        // printf("flagsData->w => %d\n", flagsData->w);
-
-        prep_packet(sendbuf, g_ping.tx_count++, flagsData->p);
+    while (infinite || argsData->c-- > 0 || time(NULL) - start < argsData->w) {
+        prep_packet(sendbuf, g_ping.tx_count++, argsData->p);
         gettimeofday(&tv_start, NULL);
-
         bytes = send_packet(sock, sendbuf, dest);
         if (bytes < 0)
             continue;
         bytes = receive_packet(sock, recvbuf, sizeof(recvbuf), &from);
         gettimeofday(&tv_end, NULL);
         if (bytes < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
                 printf("Request timeout for icmp_seq=%d\n", g_ping.tx_count - 1);
-            } else {
+            else
                 perror("recvfrom error");
-            }
-        } else {
+        } else
             process_reply(recvbuf, bytes, &from, g_ping.tx_count - 1, &tv_start, &tv_end);
-        }
         sleep(1);
     }
     cleanup(0);
@@ -214,27 +233,31 @@ void help() {
     exit(0);
 }
 
-void verifyAddr(char *argv, bool n) {
-    if (n) {
-        if (inet_pton(AF_INET, argv, &g_ping.dest_addr) <= 0) {
-            fprintf(stderr, "Invalid numeric IP: %s\n", argv);
+void verifyAddr(ArgsData *argsData) {
+    if (argsData->n) {
+        if (inet_pton(AF_INET, argsData->addr, &g_ping.dest_addr) <= 0) {
+            fprintf(stderr, "Invalid numeric IP: %s\n", argsData->addr);
             exit(1);
         }
         return;
     }
 
-    if (inet_pton(AF_INET, argv, &g_ping.dest_addr) <= 0) {
+    if (inet_pton(AF_INET, argsData->addr, &g_ping.dest_addr) <= 0) {
         struct in_addr resolved;
-        if (resolve_hostname(argv, &resolved) < 0) {
-            fprintf(stderr, "Could not resolve hostname: %s\n", argv);
+        if (resolve_hostname(argsData->addr, &resolved) < 0) {
+            fprintf(stderr, "Could not resolve hostname: %s\n", argsData->addr);
             exit(1);
         }
         g_ping.dest_addr = resolved.s_addr;
     }
+
+    if (argsData->addr[strlen(argsData->addr) - 1] == '.')
+        argsData->addr[strlen(argsData->addr) - 1] = '\0';
+    g_ping.addr = argsData->addr;
 }
 
-void debugFlags(const FlagsData *f) {
-    printf("---- FlagsData Debug ----\n");
+void debugFlags(const ArgsData *f) {
+    printf("---- ArgsData Debug ----\n");
     printf("n (numeric): %s\n", f->n ? "true" : "false");
     printf("v (verbose): %s\n", f->v ? "true" : "false");
     printf("c (count):   %d\n", f->c);
@@ -252,7 +275,23 @@ int isNumber(const char *s) {
     return 1;
 }
 
-void parsing(int argc, char **argv, FlagsData *flagsData, char *addr) {
+void initFlag(ArgsData *argsData, char currentChar, char *tmp) {
+    switch (currentChar) {
+        case 'c': 
+            argsData->c = atoi(tmp);
+            break;
+        case 'w': 
+            argsData->c = atoi(tmp);
+            break;
+        case 'W': 
+            argsData->c = atoi(tmp);
+            break;
+        default:
+            break;
+    }
+}
+
+void parsing(int argc, char **argv, ArgsData *argsData) {
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             for (int j = 1; argv[i][j] != '\0'; j++) {
@@ -270,22 +309,20 @@ void parsing(int argc, char **argv, FlagsData *flagsData, char *addr) {
 
                 switch (currentChar) {
                     case 'n':
-                        flagsData->n = true;
+                        argsData->n = true;
                         break;
 
                     case 'v':
-                        flagsData->v = true;
+                        argsData->v = true;
                         break;
 
                     case 'c':
                     case 'W':
                     case 'w':
                     case 'p':
-                        // If argument is stuck to the flag (-c10), use the rest of the string
                         if (argv[i][j+1] != '\0') {
                             tmp = argv[i] + j + 1;
                         } else {
-                            // Otherwise, take next argv
                             if (i + 1 >= argc) {
                                 fprintf(stderr, "Option -%c requires an argument\n", currentChar);
                                 exit(1);
@@ -294,26 +331,14 @@ void parsing(int argc, char **argv, FlagsData *flagsData, char *addr) {
                             i++;
                         }
                         j = (int)strlen(argv[i]) - 1;
-                        if (currentChar == 'c') {
-                            if (!isNumber(tmp)) {
-                                fprintf(stderr, "Invalid argument for -c: %s\n", tmp);
-                                exit(1);
-                            }
-                            flagsData->c = atoi(tmp);
-                        } else if (currentChar == 'W') {
-                            if (!isNumber(tmp)) {
-                                fprintf(stderr, "Invalid argument for -W: %s\n", tmp);
-                                exit(1);
-                            }
-                            flagsData->W = atoi(tmp);
-                        } else if (currentChar == 'w') {
-                            if (!isNumber(tmp)) {
-                                fprintf(stderr, "Invalid argument for -w: %s\n", tmp);
-                                exit(1);
-                            }
-                            flagsData->w = atoi(tmp);
-                        } else if (currentChar == 'p') {
-                            flagsData->p = tmp;
+
+                        if (currentChar == 'p')
+                            argsData->p = tmp;
+                        else if (isNumber(tmp))
+                            initFlag(argsData, currentChar, tmp);
+                        else {
+                            fprintf(stderr, "Invalid argument for -%c: %s\n", currentChar, tmp);
+                            exit(1);
                         }
                         break;
 
@@ -321,64 +346,51 @@ void parsing(int argc, char **argv, FlagsData *flagsData, char *addr) {
                         break;
                 }
             }
-        } else if (!strlen(addr)) {
-            addr = argv[i];
+        } else if (!strlen(argsData->addr)) {
+            argsData->addr = argv[i];
         }
     }
 
-    if (!strlen(addr)) {
+    if (!strlen(argsData->addr)) {
         fprintf(stderr, "Destination address required\n");
         exit(1);
     }
-
-    debugFlags(flagsData);
-    printf("Addr %s\n", addr);
-    verifyAddr(addr, flagsData->n);
+    verifyAddr(argsData);
 }
 
 
-int main(int argc, char *argv[]) {
-    // char flags[FLAGS_BONUS_LEN] = "";
-    char *addr = "";
-    FlagsData flagsData;
-    flagsData.n = 0;
-    flagsData.v = 0;
-    flagsData.c = 0;
-    flagsData.W = 0;
-    flagsData.w = 0;
-    flagsData.p = "";
-
-    parsing(argc, argv, &flagsData, addr);
-
+void init(ArgsData* argsData) {
+    argsData->n = 0;
+    argsData->v = 0;
+    argsData->c = 0;
+    argsData->W = 0;
+    argsData->w = 0;
+    argsData->p = "";
+    argsData->addr = "";
     g_ping.sock = -1;
     g_ping.tx_count = 0;
     g_ping.rx_count = 0;
-    
-    g_ping.sock = init_socket(&flagsData);
+    g_ping.min = FLT_MAX;
+    g_ping.max = FLT_MIN;
+    g_ping.avg = 0;
+}
+
+int main(int argc, char *argv[]) {
+    ArgsData argsData;
+    struct sockaddr_in dest;
+
+    init(&argsData);
+    parsing(argc, argv, &argsData);
+
+    g_ping.sock = init_socket(&argsData);
     if (g_ping.sock < 0)
         return 1;
 
     signal(SIGINT, cleanup);
 
-    struct sockaddr_in dest;
     memset(&dest, 0, sizeof(dest));
     dest.sin_family = AF_INET;
     dest.sin_addr.s_addr = g_ping.dest_addr;
 
-    if (flagsData.v) {
-        printf("PING %s (%s): %d data bytes, id 0x%04x = %d\n",
-            argv[1],
-            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr),
-            PKT_SIZE - (int)sizeof(struct icmphdr),
-            getpid() & 0xFFFF,
-            getpid() & 0xFFFF);
-
-    } else {
-        printf("PING %s (%s): %ld data bytes\n", 
-            argv[1], 
-            inet_ntoa(*(struct in_addr *)&g_ping.dest_addr), 
-            PKT_SIZE - sizeof(struct icmphdr));
-    }
-    
-    return ping_loop(g_ping.sock, &dest, &flagsData);
+    return ping_loop(g_ping.sock, &dest, &argsData);
 }

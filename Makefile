@@ -31,8 +31,21 @@ fclean: clean
 
 re: fclean all
 
-docker:
-	docker build -t ping .
-	docker run -it --name ping -v $(shell pwd):/app:cached ping
+docker: docker-clean docker-build docker-run
 
-.PHONY: all clean fclean re
+docker-build:
+	@echo $(CYAN)"Building Docker image..."$(RESET)
+	@docker build -t $(NAME)_image .
+
+docker-run:
+	@echo $(CYAN)"Running Docker container..."$(RESET)
+	@docker run -it -v $(shell pwd):/$(NAME) $(NAME)_image
+
+docker-clean:
+	@docker rm $$(docker ps -a -q) 2>/dev/null || true
+	@docker volume rm $$(docker volume ls -q) 2>/dev/null || true
+	@docker network rm $$(docker network ls -q) 2>/dev/null || true
+	@docker rmi $(NAME)_image 2>/dev/null || true
+	@echo $(MAGENTA)"Docker cleanup complete!"$(RESET)
+
+.PHONY: all clean fclean re docker docker-clean docker-build docker-run

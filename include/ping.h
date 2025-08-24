@@ -16,6 +16,8 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <time.h>
+#include <float.h>
+
 #define PKT_SIZE 64
 #define HOSTNAME_MAX 256
 #define FLAGS_MANDA  "v"
@@ -29,6 +31,10 @@ typedef struct {
     int tx_count;
     int rx_count;
     unsigned int dest_addr;
+    char *addr;
+    float min;
+    float max;
+    float avg;
 } PingData;
 
 PingData g_ping;
@@ -41,6 +47,7 @@ typedef struct {
     int W;   // timeout for each reply
     int w;   // delay
     char *p; // payload
-} FlagsData;
+    char *addr;
+} ArgsData;
 
 #endif
