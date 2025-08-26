@@ -22,7 +22,7 @@
 #define PKT_SIZE 64
 #define HOSTNAME_MAX 256
 #define FLAGS_MANDA  "v"
-#define FLAGS_BONUS "vnciwp"
+#define FLAGS_BONUS "vlciwp"
 #define FLAGS_MANDA_LEN  1
 #define FLAGS_BONUS_LEN  6
 
@@ -43,7 +43,7 @@ PingData g_ping;
 
 
 typedef struct {
-    bool n;  // numeric
+    int l;  // numeric
     bool v;  // verbose
     int c;   // count
     int i;   // interval btw sending packets

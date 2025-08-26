@@ -129,9 +129,8 @@ int receive_packet(int sock, char *recvbuf, size_t bufsize, struct sockaddr_in *
 }
 
 void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from, 
-                   int seq, struct timeval *tv_start, struct timeval *tv_end, int n) {
+                   int seq, struct timeval *tv_start, struct timeval *tv_end) {
     (void)seq;
-    char host[NI_MAXHOST];
     struct ip *ip_hdr = (struct ip *)recvbuf;
     int hlen = ip_hdr->ip_hl << 2;
     struct icmp *icmp_reply = (struct icmp *)(recvbuf + hlen);
@@ -152,22 +151,12 @@ void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from,
         g_ping.sum += rtt;
         g_ping.sum2 += rtt * rtt;
 
-        if (n || getnameinfo((struct sockaddr *)from, sizeof(*from), host, sizeof(host),NULL, 0, 0)) {
             printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
                 bytes - hlen,
                 inet_ntoa(from->sin_addr),
                 icmp_reply->icmp_seq,
                 ip_hdr->ip_ttl,
                 rtt);
-        } else {
-            printf("%d bytes from %s (%s): icmp_seq=%d ttl=%d time=%.3f ms\n",
-                bytes - hlen,
-                host,
-                inet_ntoa(from->sin_addr),
-                icmp_reply->icmp_seq,
-                ip_hdr->ip_ttl,
-                rtt);
-        }
 
     }
 }
@@ -209,8 +198,9 @@ int ping_loop(int sock, struct sockaddr_in *dest, ArgsData *argsData) {
         bytes = receive_packet(sock, recvbuf, sizeof(recvbuf), &from);
         gettimeofday(&tv_end, NULL);
         if (bytes)
-            process_reply(recvbuf, bytes, &from, g_ping.tx_count - 1, &tv_start, &tv_end, argsData->n);
-        sleep(argsData->i);
+            process_reply(recvbuf, bytes, &from, g_ping.tx_count - 1, &tv_start, &tv_end);
+        if (argsData->l-- <= 0)
+            sleep(argsData->i);
     }
     cleanup(0);
     return 0;
@@ -252,7 +242,7 @@ void verifyAddr(ArgsData *argsData) {
 
 void debugFlags(const ArgsData *f) {
     printf("---- ArgsData Debug ----\n");
-    printf("n (numeric): %s\n", f->n ? "true" : "false");
+    printf("n (numeric): %s\n", f->l ? "true" : "false");
     printf("v (verbose): %s\n", f->v ? "true" : "false");
     printf("c (count):   %d\n", f->c);
     printf("i (interval): %d\n", f->i);
@@ -280,6 +270,9 @@ void initFlag(ArgsData *argsData, char currentChar, char *tmp) {
         case 'i': 
             argsData->i = atoi(tmp);
             break;
+        case 'l': 
+            argsData->l = atoi(tmp);
+            break;
         default:
             break;
     }
@@ -302,15 +295,12 @@ void parsing(int argc, char **argv, ArgsData *argsData) {
                 char *tmp = NULL;
 
                 switch (currentChar) {
-                    case 'n':
-                        argsData->n = true;
-                        break;
-
                     case 'v':
                         argsData->v = true;
                         break;
 
                     case 'c':
+                    case 'l':
                     case 'i':
                     case 'w':
                     case 'p':
@@ -354,7 +344,7 @@ void parsing(int argc, char **argv, ArgsData *argsData) {
 
 
 void init(ArgsData* argsData) {
-    argsData->n = 0;
+    argsData->l = 0;
     argsData->v = 0;
     argsData->c = 0;
     argsData->i = 1;
