@@ -21,7 +21,7 @@ $(NAME): $(OBJS)
 bonus: $(BONUS_NAME)
 
 $(BONUS_NAME): $(BONUS_OBJS)
-	$(CC) $(CFLAGS) $(BONUS_OBJS) -o $(BONUS_NAME)
+	$(CC) $(CFLAGS) $(BONUS_OBJS) -o $(BONUS_NAME) -lm
 
 clean:
 	rm -f $(OBJS) $(BONUS_OBJS)

@@ -17,11 +17,12 @@
 #include <ctype.h>
 #include <time.h>
 #include <float.h>
+#include <math.h>
 
 #define PKT_SIZE 64
 #define HOSTNAME_MAX 256
 #define FLAGS_MANDA  "v"
-#define FLAGS_BONUS "vncWwp"
+#define FLAGS_BONUS "vnciwp"
 #define FLAGS_MANDA_LEN  1
 #define FLAGS_BONUS_LEN  6
 
@@ -34,7 +35,8 @@ typedef struct {
     char *addr;
     float min;
     float max;
-    float avg;
+    float sum;
+    float sum2;
 } PingData;
 
 PingData g_ping;
@@ -44,7 +46,7 @@ typedef struct {
     bool n;  // numeric
     bool v;  // verbose
     int c;   // count
-    int W;   // timeout for each reply
+    int i;   // interval btw sending packets
     int w;   // delay
     char *p; // payload
     char *addr;

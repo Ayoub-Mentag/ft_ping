@@ -37,20 +37,25 @@ unsigned short in_cksum(unsigned short *addr, int count) {
 
 void cleanup(int sig) {
     (void)sig;
-    printf("\n--- %s ping statistics ---\n", g_ping.addr);
-    
+    float avg, stddev;
     float loss = 0.0;
+
+    printf("\n--- %s ping statistics ---\n", g_ping.addr);
     if (g_ping.tx_count > 0)
         loss = 100.0 * (g_ping.tx_count - g_ping.rx_count) / g_ping.tx_count;
 
     printf("%d packets transmitted, %d received, %.1f%% packet loss\n",
             g_ping.tx_count, g_ping.rx_count, loss);
+    avg = g_ping.sum / g_ping.rx_count;
+    stddev = sqrt(g_ping.sum2 / g_ping.rx_count - avg * avg);
 
-    printf("round-trip min/avg/max/stddev = %.2f/%.2f/%.2f/%.2f ms\n",
-        g_ping.min,
-        g_ping.avg / g_ping.rx_count,
-        g_ping.max,
-        0.0);
+    if (g_ping.rx_count) {
+        printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
+            g_ping.min,
+            g_ping.sum / g_ping.rx_count,
+            g_ping.max,
+            stddev);
+    }
 
 
     if (g_ping.sock >= 0) 
@@ -58,24 +63,13 @@ void cleanup(int sig) {
     exit(0);
 }
 
-int init_socket(ArgsData* argsData) {
-    struct timeval tv_out;
+int init_socket() {
     int s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
     if (s < 0) {
         perror("socket");
         fprintf(stderr, "You need to be root to create raw sockets!\n");
         return -1;
-    }
-    
-    if (argsData->W) {
-        tv_out.tv_sec = argsData->W;
-        tv_out.tv_usec = 0;
-        if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out)) < 0) {
-            perror("setsockopt SO_RCVTIMEO");
-            close(s);
-            return -1;
-        }
     }
 
     return s;
@@ -135,8 +129,9 @@ int receive_packet(int sock, char *recvbuf, size_t bufsize, struct sockaddr_in *
 }
 
 void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from, 
-                   int seq, struct timeval *tv_start, struct timeval *tv_end) {
+                   int seq, struct timeval *tv_start, struct timeval *tv_end, int n) {
     (void)seq;
+    char host[NI_MAXHOST];
     struct ip *ip_hdr = (struct ip *)recvbuf;
     int hlen = ip_hdr->ip_hl << 2;
     struct icmp *icmp_reply = (struct icmp *)(recvbuf + hlen);
@@ -154,14 +149,26 @@ void process_reply(char *recvbuf, int bytes, struct sockaddr_in *from,
         if (g_ping.max < rtt)
             g_ping.max = rtt;
 
-        g_ping.avg += rtt;
+        g_ping.sum += rtt;
+        g_ping.sum2 += rtt * rtt;
 
-        printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
-            bytes - hlen,
-            inet_ntoa(from->sin_addr),
-            icmp_reply->icmp_seq,
-            ip_hdr->ip_ttl,
-            rtt);
+        if (n || getnameinfo((struct sockaddr *)from, sizeof(*from), host, sizeof(host),NULL, 0, 0)) {
+            printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
+                bytes - hlen,
+                inet_ntoa(from->sin_addr),
+                icmp_reply->icmp_seq,
+                ip_hdr->ip_ttl,
+                rtt);
+        } else {
+            printf("%d bytes from %s (%s): icmp_seq=%d ttl=%d time=%.3f ms\n",
+                bytes - hlen,
+                host,
+                inet_ntoa(from->sin_addr),
+                icmp_reply->icmp_seq,
+                ip_hdr->ip_ttl,
+                rtt);
+        }
+
     }
 }
 
@@ -201,14 +208,9 @@ int ping_loop(int sock, struct sockaddr_in *dest, ArgsData *argsData) {
             continue;
         bytes = receive_packet(sock, recvbuf, sizeof(recvbuf), &from);
         gettimeofday(&tv_end, NULL);
-        if (bytes < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                printf("Request timeout for icmp_seq=%d\n", g_ping.tx_count - 1);
-            else
-                perror("recvfrom error");
-        } else
-            process_reply(recvbuf, bytes, &from, g_ping.tx_count - 1, &tv_start, &tv_end);
-        sleep(1);
+        if (bytes)
+            process_reply(recvbuf, bytes, &from, g_ping.tx_count - 1, &tv_start, &tv_end, argsData->n);
+        sleep(argsData->i);
     }
     cleanup(0);
     return 0;
@@ -225,7 +227,7 @@ void help() {
             " -?              give this help list\n"
             "-n               Numeric output only\n"
             "-c               Send only a specified number of packets\n"
-            "-W               Timeout per packet\n"
+            "-i               Interval btw packets\n"
             "-w               Timeout total\n"
             "-p               Fill the ICMP payload with a repeating byte pattern\n"
             "\n"
@@ -234,14 +236,6 @@ void help() {
 }
 
 void verifyAddr(ArgsData *argsData) {
-    if (argsData->n) {
-        if (inet_pton(AF_INET, argsData->addr, &g_ping.dest_addr) <= 0) {
-            fprintf(stderr, "Invalid numeric IP: %s\n", argsData->addr);
-            exit(1);
-        }
-        return;
-    }
-
     if (inet_pton(AF_INET, argsData->addr, &g_ping.dest_addr) <= 0) {
         struct in_addr resolved;
         if (resolve_hostname(argsData->addr, &resolved) < 0) {
@@ -261,7 +255,7 @@ void debugFlags(const ArgsData *f) {
     printf("n (numeric): %s\n", f->n ? "true" : "false");
     printf("v (verbose): %s\n", f->v ? "true" : "false");
     printf("c (count):   %d\n", f->c);
-    printf("W (timeout): %d\n", f->W);
+    printf("i (interval): %d\n", f->i);
     printf("w (delay):   %d\n", f->w);
     printf("p (pattern): %s\n", f->p ? f->p : "(null)");
     printf("-------------------------\n");
@@ -281,10 +275,10 @@ void initFlag(ArgsData *argsData, char currentChar, char *tmp) {
             argsData->c = atoi(tmp);
             break;
         case 'w': 
-            argsData->c = atoi(tmp);
+            argsData->w = atoi(tmp);
             break;
-        case 'W': 
-            argsData->c = atoi(tmp);
+        case 'i': 
+            argsData->i = atoi(tmp);
             break;
         default:
             break;
@@ -300,8 +294,8 @@ void parsing(int argc, char **argv, ArgsData *argsData) {
                 if (currentChar == '?')
                     help();
 
-                if (strchr("nvcWwp", currentChar) == NULL) {
-                    fprintf(stderr, "Invalid flag: -%c\n", currentChar);
+                if (strchr(FLAGS_BONUS, currentChar) == NULL) {
+                    fprintf(stderr, "ping: invalid option -- '%c'\nTry 'ping -?' for more information.\n", currentChar);
                     exit(1);
                 }
 
@@ -317,7 +311,7 @@ void parsing(int argc, char **argv, ArgsData *argsData) {
                         break;
 
                     case 'c':
-                    case 'W':
+                    case 'i':
                     case 'w':
                     case 'p':
                         if (argv[i][j+1] != '\0') {
@@ -363,7 +357,7 @@ void init(ArgsData* argsData) {
     argsData->n = 0;
     argsData->v = 0;
     argsData->c = 0;
-    argsData->W = 0;
+    argsData->i = 1;
     argsData->w = 0;
     argsData->p = "";
     argsData->addr = "";
@@ -372,7 +366,8 @@ void init(ArgsData* argsData) {
     g_ping.rx_count = 0;
     g_ping.min = FLT_MAX;
     g_ping.max = FLT_MIN;
-    g_ping.avg = 0;
+    g_ping.sum = 0;
+    g_ping.sum2 = 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -382,7 +377,7 @@ int main(int argc, char *argv[]) {
     init(&argsData);
     parsing(argc, argv, &argsData);
 
-    g_ping.sock = init_socket(&argsData);
+    g_ping.sock = init_socket();
     if (g_ping.sock < 0)
         return 1;
 
