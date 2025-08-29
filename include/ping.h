@@ -43,12 +43,12 @@ PingData g_ping;
 
 
 typedef struct {
-    int l;  // numeric
-    bool v;  // verbose
-    int c;   // count
-    int i;   // interval btw sending packets
-    int w;   // delay
-    char *p; // payload
+    int l;
+    bool v;
+    int c;
+    int i;
+    int w;
+    char *p;
     char *addr;
 } ArgsData;
 

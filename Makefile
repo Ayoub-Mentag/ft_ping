@@ -3,25 +3,17 @@ CFLAGS = -Wall -Wextra -Werror -I $(INCLUDE)
 
 NAME = ft_ping
 SRCS = src/ping.c
-BONUS_SRCS = src/ping_bonus.c
 OBJS = $(SRCS:.c=.o)
-BONUS_OBJS = $(BONUS_SRCS:.c=.o)
 INCLUDE = include/
 HEADERS = include/ping.h
-BONUS_NAME=ft_ping_bonus
 
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
+	$(CC) $(CFLAGS) $(OBJS) -o $(NAME) -lm
 
 %.o : %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
-
-bonus: $(BONUS_NAME)
-
-$(BONUS_NAME): $(BONUS_OBJS)
-	$(CC) $(CFLAGS) $(BONUS_OBJS) -o $(BONUS_NAME) -lm
 
 clean:
 	rm -f $(OBJS) $(BONUS_OBJS)
