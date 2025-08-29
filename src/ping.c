@@ -220,7 +220,7 @@ void help() {
             "\n"
             " -v,             verbose output\n"
             " -?              give this help list\n"
-            "-n               Numeric output only\n"
+            "-l               Send sequence of packets\n"
             "-c               Send only a specified number of packets\n"
             "-i               Interval btw packets\n"
             "-w               Timeout total\n"
@@ -247,7 +247,7 @@ void verifyAddr(ArgsData *argsData) {
 
 void debugFlags(const ArgsData *f) {
     printf("---- ArgsData Debug ----\n");
-    printf("n (numeric): %s\n", f->l ? "true" : "false");
+    printf("l (sequence): %s\n", f->l ? "true" : "false");
     printf("v (verbose): %s\n", f->v ? "true" : "false");
     printf("c (count):   %d\n", f->c);
     printf("i (interval): %d\n", f->i);
